@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { toast } from "sonner";
 
 interface User {
@@ -100,7 +100,7 @@ export default function UsersPage() {
         // If not configured, this will fail with RLS errors.
         const originalUser = users.find(u => u.id === currentUser.id);
         if (originalUser && originalUser.email !== currentUser.email) {
-          const { error: authError } = await supabase.auth.admin.updateUserById(
+          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
             currentUser.id,
             { email: currentUser.email }
           );
@@ -122,7 +122,7 @@ export default function UsersPage() {
         // 1. Créer l'utilisateur dans Supabase Auth
         // NOTE: supabase.auth.admin.createUser requires a Service Role Key.
         // If not configured, this will fail with RLS errors.
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: currentUser.email,
           password: currentUser.mot_de_passe,
           email_confirm: true, // Auto-confirm email
@@ -165,7 +165,7 @@ export default function UsersPage() {
       // 1. Supprimer l'utilisateur de Supabase Auth
       // NOTE: supabase.auth.admin.deleteUser requires a Service Role Key.
       // If not configured, this will fail with RLS errors.
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
       // We don't throw error if user not found in auth, as they might have been deleted manually
       if (authError && authError.message !== "User not found") {
         console.warn("Could not delete user from Supabase Auth:", authError.message);

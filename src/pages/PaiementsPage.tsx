@@ -29,6 +29,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
+import jsPDF from "jspdf";
 
 export default function PaiementsPage() {
   const [paiements, setPaiements] = useState<any[]>([]);
@@ -80,6 +81,74 @@ export default function PaiementsPage() {
     }
   };
 
+  const generateInvoicePdf = (paiementData: any) => {
+    const doc = new jsPDF();
+
+    // Set font size and style
+    doc.setFontSize(22);
+    doc.text("Reçu de paiement BM-TECHNOLOGIE", 105, 20, { align: "center" });
+
+    doc.setFontSize(12);
+    doc.text(`Date de la Reçu: ${new Date().toLocaleDateString()}`, 10, 40);
+    doc.text(`ID Paiement: ${paiementData.id}`, 10, 47);
+
+    // Payment Details
+    doc.setFontSize(16);
+    doc.text("Détails du Paiement:", 10, 60);
+
+    doc.setFontSize(12);
+    doc.text(`Étudiant:`, 10, 70);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.inscriptions?.etudiants?.nom} ${paiementData.inscriptions?.etudiants?.prenom}`, 50, 70);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Logiciel:`, 10, 77);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.inscriptions?.logiciels?.nom}`, 50, 77);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Montant Total:`, 10, 84);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.montant_total} GNF`, 50, 84);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Montant Payé:`, 10, 91);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.montant_paye} GNF`, 50, 91);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Reste à Payer:`, 10, 98);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.montant_total - paiementData.montant_paye} GNF`, 50, 98);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Statut:`, 10, 105);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${paiementData.est_solde ? "Soldé" : "Non Soldé"}`, 50, 105);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(`Date de Création du Paiement:`, 10, 112);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${new Date(paiementData.date_creation).toLocaleDateString()}`, 70, 112);
+    doc.setFont("helvetica", "normal");
+
+    if (paiementData.date_premier_paiement) {
+      doc.text(`Date du Premier Paiement:`, 10, 119);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${new Date(paiementData.date_premier_paiement).toLocaleDateString()}`, 70, 119);
+      doc.setFont("helvetica", "normal");
+    }
+
+    if (paiementData.date_dernier_paiement) {
+      doc.text(`Date du Dernier Paiement:`, 10, 126);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${new Date(paiementData.date_dernier_paiement).toLocaleDateString()}`, 70, 126);
+      doc.setFont("helvetica", "normal");
+    }
+
+    doc.save(`Facture_Paiement_${paiementData.id}.pdf`);
+  };
+
   const handleCreate = async () => {
     if (!newPaiement.inscription_id || newPaiement.montant_total <= 0) {
       console.error("Validation Error: Inscription and Montant Total are required and positive.");
@@ -109,6 +178,7 @@ export default function PaiementsPage() {
         montant_paye: 0,
         est_solde: false,
       });
+      generateInvoicePdf(data[0]); // Generate PDF after successful creation
     }
   };
 
@@ -138,6 +208,7 @@ export default function PaiementsPage() {
       );
       setEditDialogOpen(false);
       setSelectedPaiement(null);
+      generateInvoicePdf(data[0]); // Generate PDF after successful update
     }
   };
 
