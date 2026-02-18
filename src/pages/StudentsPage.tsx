@@ -93,7 +93,7 @@ export default function StudentsPage() {
     const filePath = `${folder}/${fileName}`;
 
     const { data, error } = await supabase.storage
-      .from('student-assets') // Make sure this bucket exists in Supabase
+      .from('photos') // Make sure this bucket exists in Supabase
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
@@ -105,15 +105,15 @@ export default function StudentsPage() {
     
     // Get public URL
     const { data: publicUrlData } = supabase.storage
-      .from('student-assets')
+      .from('photos')
       .getPublicUrl(filePath);
 
     return publicUrlData.publicUrl;
   };
 
   const handleSave = async () => {
-    if (!currentStudent?.nom || !currentStudent?.prenom || !currentStudent?.email || !currentStudent?.matricule) {
-      toast.error("Le nom, prénom, email et matricule sont obligatoires.");
+    if (!currentStudent?.nom || !currentStudent?.prenom || !currentStudent?.email || !currentStudent?.matricule || !currentStudent?.telephone || !currentStudent?.adresse || !currentStudent?.date_naissance || !currentStudent?.statut) {
+      toast.error("Le nom, prénom, email, matricule, téléphone, adresse, date de naissance et statut sont obligatoires.");
       return;
     }
 
