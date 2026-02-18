@@ -330,11 +330,11 @@ export default function StudentsPage() {
 
       {/* Dialog Formulaire (Ajout/Edition) */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-lg flex flex-col max-h-[calc(100vh-4rem)]"> {/* Added flex-col and max-h */}
+          <DialogHeader className="p-6 pb-0"> {/* Added padding to header */}
             <DialogTitle>{currentStudent?.id ? "Modifier l'étudiant" : "Nouvel étudiant"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 pt-2 sm:grid-cols-2">
+          <div className="grid gap-4 p-6 overflow-y-auto flex-grow sm:grid-cols-2"> {/* Added p-6, overflow-y-auto, flex-grow */}
             <div>
               <Label htmlFor="matricule">Matricule</Label>
               <Input 

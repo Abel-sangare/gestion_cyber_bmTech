@@ -16,8 +16,7 @@ interface User {
   nom: string;
   prenom: string;
   email: string;
-  mot_de_passe?: string; // Only for creation
-  role: "admin" | "super" | "enseignant";
+  role: "admin" | "admin_junior"; // Updated to match SQL schema
   actif: boolean;
   telephone?: string;
   adresse?: string;
@@ -26,9 +25,8 @@ interface User {
 
 const roleBadge = (role: string) => {
   const map: Record<string, string> = {
-    super: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
     admin: "bg-primary/10 text-primary",
-    enseignant: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    admin_junior: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", // New style for admin_junior
   };
   return map[role] || "";
 };
@@ -308,9 +306,8 @@ export default function UsersPage() {
                   <SelectValue placeholder="Sélectionner un rôle" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="super">Super Admin</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="enseignant">Enseignant</SelectItem>
+                  <SelectItem value="admin_junior">Admin Junior</SelectItem>
                 </SelectContent>
               </Select>
             </div>
