@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Eye, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { Plus, Eye, Pencil, Trash2, Search, Loader2, Upload, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from 'uuid'; // For unique file names
 
 interface Student {
   id: number;
@@ -20,18 +21,18 @@ interface Student {
   email: string;
   telephone?: string;
   adresse?: string;
-  date_naissance?: string; // Storing as string for input type="date"
-  date_inscription?: string; // Optional as it's defaulted by DB
-  statut: "actif" | "inactif" | "suspendu"; // Aligned with DB
-  photo?: string;
-  extrait_naissance?: string;
+  date_naissance?: string;
+  date_inscription?: string;
+  statut: "actif" | "inactif" | "suspendu";
+  photo?: string; // URL
+  extrait_naissance?: string; // URL
 }
 
 const statutBadge = (statut: string) => {
   const map: Record<string, "default" | "secondary" | "destructive"> = {
     actif: "default",
     inactif: "destructive",
-    suspendu: "secondary", // Aligned with DB model
+    suspendu: "secondary",
   };
   return map[statut] || "secondary";
 };
@@ -42,13 +43,12 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [filterStatut, setFilterStatut] = useState("all");
   
-  // State pour le dialogue (Ajout/Edition)
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const emptyStudent: Partial<Student> = {
-    matricule: "", // Added as required field
+    matricule: "",
     nom: "",
     prenom: "",
     email: "",
@@ -61,6 +61,10 @@ export default function StudentsPage() {
   };
 
   const [currentStudent, setCurrentStudent] = useState<Partial<Student>>(emptyStudent);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [extraitNaissanceFile, setExtraitNaissanceFile] = useState<File | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const extraitNaissanceInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchStudents();
@@ -83,60 +87,86 @@ export default function StudentsPage() {
     }
   };
 
+  const uploadFile = async (file: File, folder: string) => {
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('student-assets') // Make sure this bucket exists in Supabase
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      throw error;
+    }
+    
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('student-assets')
+      .getPublicUrl(filePath);
+
+    return publicUrlData.publicUrl;
+  };
+
   const handleSave = async () => {
-    // Basic client-side validation
     if (!currentStudent?.nom || !currentStudent?.prenom || !currentStudent?.email || !currentStudent?.matricule) {
       toast.error("Le nom, prénom, email et matricule sont obligatoires.");
       return;
     }
 
     setIsSubmitting(true);
+    let photoUrl = currentStudent.photo;
+    let extraitNaissanceUrl = currentStudent.extrait_naissance;
+
     try {
+      if (photoFile) {
+        toast.info("Téléchargement de la photo...");
+        photoUrl = await uploadFile(photoFile, 'photos');
+        toast.success("Photo téléchargée avec succès.");
+      }
+      if (extraitNaissanceFile) {
+        toast.info("Téléchargement de l'extrait de naissance...");
+        extraitNaissanceUrl = await uploadFile(extraitNaissanceFile, 'extraits');
+        toast.success("Extrait de naissance téléchargé avec succès.");
+      }
+
+      const studentDataToSave = {
+        matricule: currentStudent.matricule,
+        nom: currentStudent.nom,
+        prenom: currentStudent.prenom,
+        email: currentStudent.email,
+        telephone: currentStudent.telephone,
+        adresse: currentStudent.adresse,
+        date_naissance: currentStudent.date_naissance,
+        statut: currentStudent.statut || 'actif',
+        photo: photoUrl,
+        extrait_naissance: extraitNaissanceUrl,
+      };
+
       if (currentStudent.id) {
-        // Mode Edition
         const { error } = await supabase
           .from('etudiants')
-          .update({
-            matricule: currentStudent.matricule,
-            nom: currentStudent.nom,
-            prenom: currentStudent.prenom,
-            email: currentStudent.email,
-            telephone: currentStudent.telephone,
-            adresse: currentStudent.adresse,
-            date_naissance: currentStudent.date_naissance,
-            statut: currentStudent.statut || 'actif',
-            photo: currentStudent.photo,
-            extrait_naissance: currentStudent.extrait_naissance,
-          })
+          .update(studentDataToSave)
           .eq('id', currentStudent.id);
         
         if (error) throw error;
         toast.success("Étudiant mis à jour");
       } else {
-        // Mode Ajout - Use the provided matricule or generate one if needed
-        // For new entry, let's use the current matricule if provided, otherwise the DB can handle it if defined
-        // or a default value is set. For now, ensure it's not empty based on validation above.
         const { error } = await supabase
           .from('etudiants')
-          .insert([{
-            matricule: currentStudent.matricule,
-            nom: currentStudent.nom,
-            prenom: currentStudent.prenom,
-            email: currentStudent.email,
-            telephone: currentStudent.telephone,
-            adresse: currentStudent.adresse,
-            date_naissance: currentStudent.date_naissance,
-            statut: currentStudent.statut || 'actif',
-            photo: currentStudent.photo,
-            extrait_naissance: currentStudent.extrait_naissance,
-          }]);
+          .insert([studentDataToSave]);
         
         if (error) throw error;
         toast.success("Étudiant ajouté avec succès");
       }
       
       setIsDialogOpen(false);
-      fetchStudents(); // Refresh data
+      setPhotoFile(null);
+      setExtraitNaissanceFile(null);
+      fetchStudents();
     } catch (error: any) {
       console.error("Supabase Error:", error);
       toast.error("Erreur: " + error.message);
@@ -149,6 +179,9 @@ export default function StudentsPage() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cet étudiant ?")) return;
 
     try {
+      // Optional: Delete files from storage here if photoUrl/extraitNaissanceUrl exist
+      // This would require fetching the student data again to get the URLs
+
       const { error } = await supabase
         .from('etudiants')
         .delete()
@@ -163,16 +196,19 @@ export default function StudentsPage() {
   };
 
   const openAddDialog = () => {
-    setCurrentStudent(emptyStudent); // Reset form
+    setCurrentStudent(emptyStudent);
+    setPhotoFile(null);
+    setExtraitNaissanceFile(null);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (student: Student) => {
     setCurrentStudent({
       ...student,
-      date_naissance: student.date_naissance ? student.date_naissance.split('T')[0] : '', // Format date for input type="date"
-      // Ensure date_inscription is not passed back to form, as it's DB generated
+      date_naissance: student.date_naissance ? student.date_naissance.split('T')[0] : '',
     });
+    setPhotoFile(null); // Clear file input on edit
+    setExtraitNaissanceFile(null); // Clear file input on edit
     setIsDialogOpen(true);
   };
 
@@ -180,6 +216,25 @@ export default function StudentsPage() {
     setCurrentStudent(student);
     setIsDetailOpen(true);
   };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, field: 'photo' | 'extrait_naissance') => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      if (field === 'photo') {
+        setPhotoFile(file);
+      } else {
+        setExtraitNaissanceFile(file);
+      }
+    } else {
+      if (field === 'photo') {
+        setPhotoFile(null);
+      } else {
+        setExtraitNaissanceFile(null);
+      }
+    }
+  };
+
+  const getFilePreviewUrl = (file: File | null) => (file ? URL.createObjectURL(file) : null);
 
   const filtered = students.filter((s) => {
     const matchSearch = `${s.nom} ${s.prenom} ${s.matricule} ${s.email} ${s.telephone} ${s.adresse}`.toLowerCase().includes(search.toLowerCase());
@@ -348,26 +403,78 @@ export default function StudentsPage() {
                 placeholder="Adresse complète de l'étudiant" 
               />
             </div>
+            {/* Photo Upload */}
             <div>
-              <Label htmlFor="photo">Lien Photo</Label>
-              <Input 
-                id="photo" 
-                type="text" 
-                value={currentStudent?.photo || ""} 
-                onChange={(e) => setCurrentStudent({...currentStudent, photo: e.target.value})}
-                placeholder="URL de la photo" 
-              />
+              <Label htmlFor="photo">Photo</Label>
+              <div className="flex items-center space-x-2">
+                <Input 
+                  id="photo" 
+                  type="file" 
+                  accept="image/*"
+                  ref={photoInputRef}
+                  onChange={(e) => handleFileChange(e, 'photo')}
+                  className="col-span-3"
+                />
+                {(currentStudent.photo || photoFile) && (
+                  <Button variant="outline" size="icon" onClick={() => {
+                    setPhotoFile(null);
+                    setCurrentStudent(prev => ({ ...prev, photo: undefined }));
+                    if (photoInputRef.current) photoInputRef.current.value = '';
+                  }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {(getFilePreviewUrl(photoFile) || currentStudent.photo) && (
+                <div className="mt-2 w-24 h-24 relative">
+                  <img 
+                    src={getFilePreviewUrl(photoFile) || currentStudent.photo} 
+                    alt="Prévisualisation photo" 
+                    className="w-full h-full object-cover rounded-md"
+                  />
+                </div>
+              )}
             </div>
+
+            {/* Extrait de Naissance Upload */}
             <div>
-              <Label htmlFor="extrait_naissance">Lien Extrait de Naissance</Label>
-              <Input 
-                id="extrait_naissance" 
-                type="text" 
-                value={currentStudent?.extrait_naissance || ""} 
-                onChange={(e) => setCurrentStudent({...currentStudent, extrait_naissance: e.target.value})}
-                placeholder="URL de l'extrait de naissance" 
-              />
+              <Label htmlFor="extrait_naissance">Extrait de Naissance</Label>
+              <div className="flex items-center space-x-2">
+                <Input 
+                  id="extrait_naissance" 
+                  type="file" 
+                  accept="image/*,application/pdf"
+                  ref={extraitNaissanceInputRef}
+                  onChange={(e) => handleFileChange(e, 'extrait_naissance')}
+                  className="col-span-3"
+                />
+                 {(currentStudent.extrait_naissance || extraitNaissanceFile) && (
+                  <Button variant="outline" size="icon" onClick={() => {
+                    setExtraitNaissanceFile(null);
+                    setCurrentStudent(prev => ({ ...prev, extrait_naissance: undefined }));
+                    if (extraitNaissanceInputRef.current) extraitNaissanceInputRef.current.value = '';
+                  }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {(getFilePreviewUrl(extraitNaissanceFile) || currentStudent.extrait_naissance) && (
+                <div className="mt-2 w-24 h-24 relative">
+                  {extraitNaissanceFile?.type.startsWith('image/') || currentStudent.extrait_naissance?.match(/\.(jpeg|jpg|gif|png|webp|svg)$/) ? (
+                    <img 
+                      src={getFilePreviewUrl(extraitNaissanceFile) || currentStudent.extrait_naissance} 
+                      alt="Prévisualisation extrait de naissance" 
+                      className="w-full h-full object-cover rounded-md"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-md text-sm text-gray-500">
+                      PDF
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
             <div>
               <Label htmlFor="statut">Statut</Label>
               <Select 
