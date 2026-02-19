@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { createNotification } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -99,18 +99,11 @@ export default function UsersPage() {
         if (dbError) throw dbError;
 
         // 2. Mettre à jour l'email dans Supabase Auth si modifié
-        // NOTE: supabase.auth.admin.updateUserById requires a Service Role Key.
-        // If not configured, this will fail with RLS errors.
+        // NOTE: Cela nécessite normalement une Service Role Key (Admin).
+        // Comme nous l'avons retirée pour la sécurité, cette action ne peut plus être faite ici.
         const originalUser = users.find(u => u.id === currentUser.id);
         if (originalUser && originalUser.email !== currentUser.email) {
-          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-            currentUser.id,
-            { email: currentUser.email }
-          );
-          if (authError) {
-            console.warn("Could not update user email in Supabase Auth:", authError.message);
-            toast.warning("Email utilisateur mis à jour dans la base de données, mais pas dans Supabase Auth (permissions?)");
-          }
+          toast.warning("L'email ne peut être modifié que via la console Supabase pour des raisons de sécurité.");
         }
         
         toast.success("Utilisateur mis à jour");
@@ -122,42 +115,9 @@ export default function UsersPage() {
 
       } else {
         // --- Création d'un nouvel utilisateur ---
-        if (!currentUser.mot_de_passe || currentUser.mot_de_passe.length < 6) {
-          toast.error("Le mot de passe est obligatoire et doit contenir au moins 6 caractères.");
-          return;
-        }
-
-        // 1. Créer l'utilisateur dans Supabase Auth
-        // NOTE: supabase.auth.admin.createUser requires a Service Role Key.
-        // If not configured, this will fail with RLS errors.
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: currentUser.email,
-          password: currentUser.mot_de_passe,
-          email_confirm: true, // Auto-confirm email
-        });
-
-        if (authError) throw authError;
-        if (!authUser?.user?.id) throw new Error("Supabase Auth user ID not returned.");
-
-        // 2. Insérer les détails dans notre table 'utilisateurs'
-        const { error: dbError } = await supabase.from("utilisateurs").insert([{
-          id: authUser.user.id, // Use the ID from Supabase Auth
-          nom: currentUser.nom,
-          prenom: currentUser.prenom,
-          email: currentUser.email,
-          role: currentUser.role,
-          actif: currentUser.actif,
-          telephone: currentUser.telephone,
-          adresse: currentUser.adresse,
-        }]);
-        if (dbError) throw dbError;
-        
-        toast.success("Utilisateur créé avec succès");
-        await createNotification(
-          `Nouvel utilisateur créé : ${currentUser.nom} ${currentUser.prenom} (${currentUser.role}).`,
-          "utilisateur",
-          user?.id
-        );
+        toast.error("La création d'utilisateur est désactivée côté client. Veuillez utiliser la console Supabase (Authentication) pour ajouter des utilisateurs.");
+        setIsSubmitting(false);
+        return;
       }
 
       setIsDialogOpen(false);
@@ -176,24 +136,17 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     try {
-      // 1. Supprimer l'utilisateur de Supabase Auth
-      // NOTE: supabase.auth.admin.deleteUser requires a Service Role Key.
-      // If not configured, this will fail with RLS errors.
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-      // We don't throw error if user not found in auth, as they might have been deleted manually
-      if (authError && authError.message !== "User not found") {
-        console.warn("Could not delete user from Supabase Auth:", authError.message);
-        toast.warning("Utilisateur supprimé de la base de données, mais pas de Supabase Auth (permissions?)");
-      }
+      // 1. Suppression désactivée car nécessite Service Role Key
+      toast.warning("La suppression complète nécessite des droits administrateur via la console Supabase.");
 
-      // 2. Supprimer l'utilisateur de notre table 'utilisateurs'
+      // 2. Supprimer l'utilisateur de notre table 'utilisateurs' (optionnel, on peut juste désactiver)
       const { error: dbError } = await supabase
         .from("utilisateurs")
         .delete()
         .eq("id", userId);
       if (dbError) throw dbError;
 
-      toast.success("Utilisateur supprimé");
+      toast.success("Utilisateur retiré de la liste");
       
       if (userToDelete) {
         await createNotification(
