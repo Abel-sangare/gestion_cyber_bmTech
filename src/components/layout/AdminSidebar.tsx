@@ -6,6 +6,8 @@ import {
   ClipboardList,
   Calendar,
   CreditCard,
+  Wallet,
+  BarChart3,
   Settings,
   ChevronLeft,
 } from "lucide-react";
@@ -20,6 +22,8 @@ const navItems = [
   { label: "Inscriptions", icon: ClipboardList, to: "/inscriptions" },
   { label: "Emplois du temps", icon: Calendar, to: "/emploi-du-temps" },
   { label: "Paiements", icon: CreditCard, to: "/paiements" },
+  { label: "Dépenses", icon: Wallet, to: "/depenses" },
+  { label: "Inventaires", icon: BarChart3, to: "/inventaires" },
   { label: "Paramètres", icon: Settings, to: "/parametres" },
 ];
 

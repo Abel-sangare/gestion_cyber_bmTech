@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import jsPDF from "jspdf";
 
@@ -441,6 +442,19 @@ export default function PaiementsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Encaissé</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {paiements.reduce((acc, curr) => acc + (curr.montant_paye || 0), 0).toLocaleString()} GNF
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-4">

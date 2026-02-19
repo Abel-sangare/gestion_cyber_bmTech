@@ -8,7 +8,14 @@ if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
   console.error("Les clés Supabase (URL, Anon Key, Service Key) sont manquantes dans le fichier .env");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'bmtech-auth-token', // Utilisation d'une clé personnalisée pour éviter les conflits
+  },
+});
 
 // Client for admin operations, only to be used in a secure environment (e.g., server-side or serverless functions)
 // Exposing this key directly in client-side code is a SECURITY RISK.

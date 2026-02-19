@@ -39,15 +39,26 @@ export default function DashboardPage() {
         .select('count', { count: 'exact' });
       if (inscriptionsError) throw inscriptionsError;
 
+      const { data: inscriptionsPrices, error: insPricesError } = await supabase
+        .from('inscriptions')
+        .select('prix_inscription');
+      if (insPricesError) throw insPricesError;
+
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('paiements')
         .select('montant_total, montant_paye, est_solde, date_premier_paiement');
       if (paymentsError) throw paymentsError;
 
       let totalRevenues = 0;
+      let totalInscriptionsPrice = 0;
       let pendingPaymentsCount = 0;
+
+      if (inscriptionsPrices) {
+        totalInscriptionsPrice = inscriptionsPrices.reduce((sum, i) => sum + (i.prix_inscription || 0), 0);
+      }
+
       if (paymentsData) {
-        totalRevenues = paymentsData.reduce((sum, p) => sum + p.montant_paye, 0);
+        totalRevenues = paymentsData.reduce((sum, p) => sum + p.montant_paye, 0) + totalInscriptionsPrice;
         pendingPaymentsCount = paymentsData.filter(p => !p.est_solde).length;
       }
 

@@ -13,6 +13,8 @@ import InscriptionsPage from "./pages/InscriptionsPage";
 import PaiementsPage from "./pages/PaiementsPage";
 import SchedulePage from "./pages/SchedulePage";
 import SettingsPage from "./pages/SettingsPage";
+import DepensePage from "./pages/DepensePage";
+import InventairesPage from "./pages/InventairesPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +37,8 @@ const App = () => (
               <Route path="/inscriptions" element={<InscriptionsPage />} />
               <Route path="/emploi-du-temps" element={<SchedulePage />} />
               <Route path="/paiements" element={<PaiementsPage />} />
+              <Route path="/depenses" element={<DepensePage />} />
+              <Route path="/inventaires" element={<InventairesPage />} />
               <Route path="/parametres" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

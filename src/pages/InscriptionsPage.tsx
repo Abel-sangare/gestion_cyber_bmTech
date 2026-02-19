@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 
 import {
@@ -374,6 +375,19 @@ export default function InscriptionsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Prix Total Inscriptions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {inscriptions.reduce((acc, curr) => acc + (curr.prix_inscription || 0), 0).toLocaleString()} GNF
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
