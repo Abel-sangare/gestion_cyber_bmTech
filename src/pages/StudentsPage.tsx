@@ -12,6 +12,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid'; // For unique file names
+import { createNotification } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface Student {
   id: number;
@@ -38,6 +49,7 @@ const statutBadge = (statut: string) => {
 };
 
 export default function StudentsPage() {
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -46,6 +58,10 @@ export default function StudentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
   
   const emptyStudent: Partial<Student> = {
     matricule: "",
@@ -154,6 +170,11 @@ export default function StudentsPage() {
         
         if (error) throw error;
         toast.success("Étudiant mis à jour");
+        await createNotification(
+          `L'étudiant ${currentStudent.prenom} ${currentStudent.nom} a été mis à jour.`,
+          "etudiant",
+          user?.id
+        );
       } else {
         const { error } = await supabase
           .from('etudiants')
@@ -161,6 +182,11 @@ export default function StudentsPage() {
         
         if (error) throw error;
         toast.success("Étudiant ajouté avec succès");
+        await createNotification(
+          `Nouvel étudiant inscrit : ${currentStudent.prenom} ${currentStudent.nom}.`,
+          "etudiant",
+          user?.id
+        );
       }
       
       setIsDialogOpen(false);
@@ -176,12 +202,10 @@ export default function StudentsPage() {
   };
 
   const handleDelete = async (id: number) => {
+    const studentToDelete = students.find(s => s.id === id);
     if (!confirm("Êtes-vous sûr de vouloir supprimer cet étudiant ?")) return;
 
     try {
-      // Optional: Delete files from storage here if photoUrl/extraitNaissanceUrl exist
-      // This would require fetching the student data again to get the URLs
-
       const { error } = await supabase
         .from('etudiants')
         .delete()
@@ -189,6 +213,14 @@ export default function StudentsPage() {
 
       if (error) throw error;
       toast.success("Étudiant supprimé");
+      
+      if (studentToDelete) {
+        await createNotification(
+          `L'étudiant ${studentToDelete.prenom} ${studentToDelete.nom} a été supprimé.`,
+          "etudiant",
+          user?.id
+        );
+      }
       fetchStudents();
     } catch (error: any) {
       toast.error("Erreur lors de la suppression: " + error.message);
@@ -241,6 +273,17 @@ export default function StudentsPage() {
     const matchStatut = filterStatut === "all" || s.statut === filterStatut;
     return matchSearch && matchStatut;
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedStudents = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -305,7 +348,7 @@ export default function StudentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((s) => (
+                paginatedStudents.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono text-xs">{s.matricule}</TableCell>
                     <TableCell className="font-medium">{s.nom}</TableCell>
@@ -327,6 +370,40 @@ export default function StudentsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+            {[...Array(totalPages)].map((_, i) => (
+              <PaginationItem key={i + 1}>
+                <PaginationLink 
+                  href="#" 
+                  isActive={currentPage === i + 1}
+                  onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {/* Dialog Formulaire (Ajout/Edition) */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

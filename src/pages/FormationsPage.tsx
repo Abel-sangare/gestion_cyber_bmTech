@@ -28,7 +28,20 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { createNotification } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+
 export default function FormationsPage() {
+  const { user } = useAuth();
   const [logiciels, setLogiciels] = useState<any[]>([]);
   const [newLogiciel, setNewLogiciel] = useState({
     code_logiciel: "",
@@ -40,6 +53,10 @@ export default function FormationsPage() {
   const [selectedLogiciel, setSelectedLogiciel] = useState<any | null>(null);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchLogiciels();
@@ -71,6 +88,13 @@ export default function FormationsPage() {
         duree: "indefini",
         prix: 0,
       });
+
+      // Notification
+      await createNotification(
+        `Nouvelle formation ajoutée : ${data[0].nom}.`,
+        "formation",
+        user?.id
+      );
     }
   };
 
@@ -89,15 +113,32 @@ export default function FormationsPage() {
       );
       setEditDialogOpen(false);
       setSelectedLogiciel(null);
+
+      // Notification
+      await createNotification(
+        `Formation ${data[0].nom} mise à jour.`,
+        "formation",
+        user?.id
+      );
     }
   };
 
   const handleDelete = async (id: number) => {
+    const logicielToDelete = logiciels.find(l => l.id === id);
     const { error } = await supabase.from("logiciels").delete().eq("id", id);
     if (error) {
       console.error("Error deleting logiciel:", error);
     } else {
       setLogiciels(logiciels.filter((l) => l.id !== id));
+      
+      // Notification
+      if (logicielToDelete) {
+        await createNotification(
+          `Formation supprimée : ${logicielToDelete.nom}.`,
+          "formation",
+          user?.id
+        );
+      }
     }
   };
 
@@ -116,10 +157,22 @@ export default function FormationsPage() {
     "indefini",
   ];
 
+  // Pagination logic
+  const totalPages = Math.ceil(logiciels.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedLogiciels = logiciels.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Gestion des Logiciels</h1>
+
         <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -228,7 +281,7 @@ export default function FormationsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {logiciels.map((logiciel) => (
+          {paginatedLogiciels.map((logiciel) => (
             <TableRow key={logiciel.id}>
               <TableCell>{logiciel.code_logiciel}</TableCell>
               <TableCell>{logiciel.nom}</TableCell>
@@ -249,6 +302,40 @@ export default function FormationsPage() {
           ))}
         </TableBody>
       </Table>
+
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+            {[...Array(totalPages)].map((_, i) => (
+              <PaginationItem key={i + 1}>
+                <PaginationLink 
+                  href="#" 
+                  isActive={currentPage === i + 1}
+                  onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {selectedLogiciel && (
         <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>

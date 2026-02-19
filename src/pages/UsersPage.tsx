@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { toast } from "sonner";
+import { createNotification } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 interface User {
   id: string; // Supabase auth user IDs are strings (UUID)
@@ -32,6 +34,7 @@ const roleBadge = (role: string) => {
 };
 
 export default function UsersPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -111,6 +114,11 @@ export default function UsersPage() {
         }
         
         toast.success("Utilisateur mis à jour");
+        await createNotification(
+          `Utilisateur mis à jour : ${currentUser.nom} ${currentUser.prenom}.`,
+          "utilisateur",
+          user?.id
+        );
 
       } else {
         // --- Création d'un nouvel utilisateur ---
@@ -145,6 +153,11 @@ export default function UsersPage() {
         if (dbError) throw dbError;
         
         toast.success("Utilisateur créé avec succès");
+        await createNotification(
+          `Nouvel utilisateur créé : ${currentUser.nom} ${currentUser.prenom} (${currentUser.role}).`,
+          "utilisateur",
+          user?.id
+        );
       }
 
       setIsDialogOpen(false);
@@ -158,6 +171,7 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (userId: string) => {
+    const userToDelete = users.find(u => u.id === userId);
     if (!confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible et supprimera l'utilisateur de l'authentification Supabase et de la base de données.")) return;
 
     setIsSubmitting(true);
@@ -180,6 +194,14 @@ export default function UsersPage() {
       if (dbError) throw dbError;
 
       toast.success("Utilisateur supprimé");
+      
+      if (userToDelete) {
+        await createNotification(
+          `Utilisateur supprimé : ${userToDelete.nom} ${userToDelete.prenom}.`,
+          "utilisateur",
+          user?.id
+        );
+      }
       fetchUsers();
     } catch (error: any) {
       console.error("Supabase Operation Error:", error);

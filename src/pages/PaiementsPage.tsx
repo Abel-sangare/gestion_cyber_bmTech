@@ -31,7 +31,20 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import jsPDF from "jspdf";
 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { createNotification } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+
 export default function PaiementsPage() {
+  const { user } = useAuth();
   const [paiements, setPaiements] = useState<any[]>([]);
   const [inscriptions, setInscriptions] = useState<any[]>([]);
   const [newPaiement, setNewPaiement] = useState({
@@ -39,12 +52,18 @@ export default function PaiementsPage() {
     montant_total: 0,
     montant_paye: 0,
     est_solde: false,
+    date_premier_paiement: "",
+    date_dernier_paiement: "",
   });
   const [selectedPaiement, setSelectedPaiement] = useState<any | null>(null);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [filterEstSolde, setFilterEstSolde] = useState("all"); // "all", "true", "false"
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchData();
@@ -163,6 +182,8 @@ export default function PaiementsPage() {
           montant_total: newPaiement.montant_total,
           montant_paye: newPaiement.montant_paye,
           est_solde: newPaiement.est_solde,
+          date_premier_paiement: newPaiement.date_premier_paiement || null,
+          date_dernier_paiement: newPaiement.date_dernier_paiement || null,
         },
       ])
       .select("*, inscriptions(id, etudiant_id, logiciel_id, etudiants(nom, prenom), logiciels(nom, code_logiciel))");
@@ -177,8 +198,18 @@ export default function PaiementsPage() {
         montant_total: 0,
         montant_paye: 0,
         est_solde: false,
+        date_premier_paiement: "",
+        date_dernier_paiement: "",
       });
       generateInvoicePdf(data[0]); // Generate PDF after successful creation
+
+      // Notification
+      const etudiantNom = data[0].inscriptions?.etudiants ? `${data[0].inscriptions.etudiants.prenom} ${data[0].inscriptions.etudiants.nom}` : "Étudiant";
+      await createNotification(
+        `Nouveau paiement enregistré : ${data[0].montant_paye} GNF pour ${etudiantNom}.`,
+        "paiement",
+        user?.id
+      );
     }
   };
 
@@ -196,6 +227,8 @@ export default function PaiementsPage() {
         montant_total: selectedPaiement.montant_total,
         montant_paye: selectedPaiement.montant_paye,
         est_solde: selectedPaiement.est_solde,
+        date_premier_paiement: selectedPaiement.date_premier_paiement || null,
+        date_dernier_paiement: selectedPaiement.date_dernier_paiement || null,
       })
       .eq("id", selectedPaiement.id)
       .select("*, inscriptions(id, etudiant_id, logiciel_id, etudiants(nom, prenom), logiciels(nom, code_logiciel))");
@@ -209,22 +242,50 @@ export default function PaiementsPage() {
       setEditDialogOpen(false);
       setSelectedPaiement(null);
       generateInvoicePdf(data[0]); // Generate PDF after successful update
+
+      // Notification
+      const etudiantNom = data[0].inscriptions?.etudiants ? `${data[0].inscriptions.etudiants.prenom} ${data[0].inscriptions.etudiants.nom}` : "Étudiant";
+      await createNotification(
+        `Paiement mis à jour pour ${etudiantNom} (Solde: ${data[0].est_solde ? 'Oui' : 'Non'}).`,
+        "paiement",
+        user?.id
+      );
     }
   };
 
   const handleDelete = async (id: number) => {
+    const paiementToDelete = paiements.find(p => p.id === id);
     const { error } = await supabase.from("paiements").delete().eq("id", id);
     if (error) {
       console.error("Error deleting paiement:", error);
     } else {
       setPaiements(paiements.filter((p) => p.id !== id));
+      
+      // Notification
+      if (paiementToDelete) {
+        const etudiantNom = paiementToDelete.inscriptions?.etudiants ? `${paiementToDelete.inscriptions.etudiants.prenom} ${paiementToDelete.inscriptions.etudiants.nom}` : "Étudiant";
+        await createNotification(
+          `Paiement de ${paiementToDelete.montant_paye} GNF supprimé (Étudiant: ${etudiantNom}).`,
+          "paiement",
+          user?.id
+        );
+      }
     }
   };
 
   const openEditDialog = (paiement: any) => {
+    // Format dates for datetime-local input (YYYY-MM-DDTHH:mm)
+    const formatDateForInput = (dateString: string | null) => {
+      if (!dateString) return "";
+      const date = new Date(dateString);
+      return date.toISOString().slice(0, 16);
+    };
+
     setSelectedPaiement({
       ...paiement,
       inscription_id: paiement.inscriptions.id,
+      date_premier_paiement: formatDateForInput(paiement.date_premier_paiement),
+      date_dernier_paiement: formatDateForInput(paiement.date_dernier_paiement),
     });
     setEditDialogOpen(true);
   };
@@ -247,10 +308,22 @@ export default function PaiementsPage() {
     return studentName.includes(searchLower) || logicielName.includes(searchLower);
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredAndSearchedPaiements.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPaiements = filteredAndSearchedPaiements.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Gestion des Paiements</h1>
+
         <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -322,6 +395,34 @@ export default function PaiementsPage() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="date_premier_paiement" className="text-right">
+                  Date Premier Paiement
+                </Label>
+                <Input
+                  id="date_premier_paiement"
+                  type="datetime-local"
+                  value={newPaiement.date_premier_paiement}
+                  onChange={(e) =>
+                    setNewPaiement({ ...newPaiement, date_premier_paiement: e.target.value })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="date_dernier_paiement" className="text-right">
+                  Date Dernier Paiement
+                </Label>
+                <Input
+                  id="date_dernier_paiement"
+                  type="datetime-local"
+                  value={newPaiement.date_dernier_paiement}
+                  onChange={(e) =>
+                    setNewPaiement({ ...newPaiement, date_dernier_paiement: e.target.value })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="est_solde" className="text-right">
                   Soldé
                 </Label>
@@ -375,7 +476,7 @@ export default function PaiementsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredAndSearchedPaiements.map((paiement) => (
+          {paginatedPaiements.map((paiement) => (
             <TableRow key={paiement.id}>
               <TableCell>
                 {paiement.inscriptions?.etudiants?.nom}{" "}
@@ -418,6 +519,40 @@ export default function PaiementsPage() {
           ))}
         </TableBody>
       </Table>
+
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+            {[...Array(totalPages)].map((_, i) => (
+              <PaginationItem key={i + 1}>
+                <PaginationLink 
+                  href="#" 
+                  isActive={currentPage === i + 1}
+                  onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {selectedPaiement && (
         <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -483,6 +618,40 @@ export default function PaiementsPage() {
                   }
                   className="col-span-3"
                   required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit_date_premier_paiement" className="text-right">
+                  Date Premier Paiement
+                </Label>
+                <Input
+                  id="edit_date_premier_paiement"
+                  type="datetime-local"
+                  value={selectedPaiement.date_premier_paiement}
+                  onChange={(e) =>
+                    setSelectedPaiement({
+                      ...selectedPaiement,
+                      date_premier_paiement: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit_date_dernier_paiement" className="text-right">
+                  Date Dernier Paiement
+                </Label>
+                <Input
+                  id="edit_date_dernier_paiement"
+                  type="datetime-local"
+                  value={selectedPaiement.date_dernier_paiement}
+                  onChange={(e) =>
+                    setSelectedPaiement({
+                      ...selectedPaiement,
+                      date_dernier_paiement: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">

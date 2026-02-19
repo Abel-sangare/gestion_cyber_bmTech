@@ -29,7 +29,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { createNotification } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+
 export default function InscriptionsPage() {
+  const { user } = useAuth();
   const [inscriptions, setInscriptions] = useState<any[]>([]);
   const [etudiants, setEtudiants] = useState<any[]>([]);
   const [logiciels, setLogiciels] = useState<any[]>([]);
@@ -38,11 +51,17 @@ export default function InscriptionsPage() {
     logiciel_id: "",
     statut: "inscrit",
     prix_inscription: 0,
+    signature_url: "",
   });
   const [selectedInscription, setSelectedInscription] = useState<any | null>(null);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [isCapturing, setIsCapturing] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchData();
@@ -83,6 +102,30 @@ export default function InscriptionsPage() {
     }
   };
 
+  const handleCaptureSignature = async (isEdit = false) => {
+    setIsCapturing(true);
+    try {
+      // ICI : Remplacez par l'appel à votre outil externe
+      // Exemple : const response = await fetch('http://localhost:8000/capture');
+      // const data = await response.json();
+      
+      // Simulation d'une signature (on utilise un placeholder pour le moment)
+      const mockSignatureUrl = "https://w7.pngwing.com/pngs/631/1004/png-transparent-signature-handwriting-ink-signature-angle-white-text-thumbnail.png";
+      
+      if (isEdit) {
+        setSelectedInscription({ ...selectedInscription, signature_url: mockSignatureUrl });
+      } else {
+        setNewInscription({ ...newInscription, signature_url: mockSignatureUrl });
+      }
+      alert("Signature capturée avec succès !");
+    } catch (error) {
+      console.error("Erreur capture signature:", error);
+      alert("Erreur lors de la capture de la signature");
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
   const handleCreate = async () => {
     const { data, error } = await supabase
       .from("inscriptions")
@@ -92,6 +135,7 @@ export default function InscriptionsPage() {
           logiciel_id: parseInt(newInscription.logiciel_id),
           statut: newInscription.statut,
           prix_inscription: newInscription.prix_inscription,
+          signature_url: newInscription.signature_url,
         },
       ])
       .select("*, etudiants(id, nom, prenom), logiciels(id, nom, code_logiciel)");
@@ -100,11 +144,22 @@ export default function InscriptionsPage() {
     } else if (data) {
       setInscriptions([...inscriptions, data[0]]);
       setCreateDialogOpen(false);
+      
+      // Notification
+      const etudiantNom = data[0].etudiants ? `${data[0].etudiants.prenom} ${data[0].etudiants.nom}` : "Étudiant inconnu";
+      const logicielNom = data[0].logiciels ? data[0].logiciels.nom : "Logiciel inconnu";
+      await createNotification(
+        `Nouvelle inscription : ${etudiantNom} inscrit à ${logicielNom}.`,
+        "inscription",
+        user?.id
+      );
+
       setNewInscription({
         etudiant_id: "",
         logiciel_id: "",
         statut: "inscrit",
         prix_inscription: 0,
+        signature_url: "",
       });
     }
   };
@@ -118,6 +173,7 @@ export default function InscriptionsPage() {
         logiciel_id: parseInt(selectedInscription.logiciel_id),
         statut: selectedInscription.statut,
         prix_inscription: selectedInscription.prix_inscription,
+        signature_url: selectedInscription.signature_url,
       })
       .eq("id", selectedInscription.id)
       .select("*, etudiants(id, nom, prenom), logiciels(id, nom, code_logiciel)");
@@ -129,15 +185,35 @@ export default function InscriptionsPage() {
       );
       setEditDialogOpen(false);
       setSelectedInscription(null);
+
+      // Notification
+      const etudiantNom = data[0].etudiants ? `${data[0].etudiants.prenom} ${data[0].etudiants.nom}` : "Étudiant inconnu";
+      await createNotification(
+        `Inscription mise à jour pour ${etudiantNom} (Statut: ${data[0].statut}).`,
+        "inscription",
+        user?.id
+      );
     }
   };
 
   const handleDelete = async (id: number) => {
+    const inscriptionToDelete = inscriptions.find(i => i.id === id);
     const { error } = await supabase.from("inscriptions").delete().eq("id", id);
     if (error) {
       console.error("Error deleting inscription:", error);
     } else {
       setInscriptions(inscriptions.filter((i) => i.id !== id));
+      
+      // Notification
+      if (inscriptionToDelete) {
+        const etudiantNom = inscriptionToDelete.etudiants ? `${inscriptionToDelete.etudiants.prenom} ${inscriptionToDelete.etudiants.nom}` : "Étudiant";
+        const logicielNom = inscriptionToDelete.logiciels ? inscriptionToDelete.logiciels.nom : "Logiciel";
+        await createNotification(
+          `Inscription supprimée : ${etudiantNom} - ${logicielNom}.`,
+          "inscription",
+          user?.id
+        );
+      }
     }
   };
 
@@ -157,10 +233,22 @@ export default function InscriptionsPage() {
     return i.statut === filter;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredInscriptions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedInscriptions = filteredInscriptions.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Gestion des Inscriptions</h1>
+
         <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -255,6 +343,31 @@ export default function InscriptionsPage() {
                   className="col-span-3"
                 />
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Signature</Label>
+                <div className="col-span-3 flex items-center gap-4">
+                  {newInscription.signature_url ? (
+                    <div className="relative group border rounded p-2 bg-white h-20 w-40 flex items-center justify-center">
+                      <img src={newInscription.signature_url} alt="Signature Preview" className="max-h-full max-w-full object-contain" />
+                      <button 
+                        onClick={() => setNewInscription({ ...newInscription, signature_url: "" })}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => handleCaptureSignature(false)}
+                      disabled={isCapturing}
+                    >
+                      {isCapturing ? "Capture en cours..." : "Capturer Signature"}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleCreate}>Créer</Button>
@@ -283,12 +396,13 @@ export default function InscriptionsPage() {
             <TableHead>Logiciel</TableHead>
             <TableHead>Date d'Inscription</TableHead>
             <TableHead>Statut</TableHead>
+            <TableHead>Signature</TableHead>
             <TableHead>Prix Inscription</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredInscriptions.map((inscription) => (
+          {paginatedInscriptions.map((inscription) => (
             <TableRow key={inscription.id}>
               <TableCell>{inscription.etudiants?.nom} {inscription.etudiants?.prenom}</TableCell>
               <TableCell>{inscription.logiciels?.nom}</TableCell>
@@ -305,6 +419,13 @@ export default function InscriptionsPage() {
                 >
                   {inscription.statut}
                 </Badge>
+              </TableCell>
+              <TableCell>
+                {inscription.signature_url ? (
+                  <img src={inscription.signature_url} alt="Signature" className="h-8 w-auto object-contain bg-white rounded border p-1" />
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Non signée</span>
+                )}
               </TableCell>
               <TableCell>{inscription.prix_inscription}</TableCell>
               <TableCell>
@@ -329,6 +450,40 @@ export default function InscriptionsPage() {
           ))}
         </TableBody>
       </Table>
+
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+            {[...Array(totalPages)].map((_, i) => (
+              <PaginationItem key={i + 1}>
+                <PaginationLink 
+                  href="#" 
+                  isActive={currentPage === i + 1}
+                  onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {selectedInscription && (
         <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
