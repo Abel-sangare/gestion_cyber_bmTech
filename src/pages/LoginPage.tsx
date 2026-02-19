@@ -74,6 +74,14 @@ const LoginPage = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Mot de passe</Label>
+                <Button 
+                  variant="link" 
+                  className="px-0 font-normal text-xs text-primary"
+                  onClick={() => navigate("/forgot-password")}
+                  type="button"
+                >
+                  Mot de passe oublié ?
+                </Button>
               </div>
               <Input 
                 id="password" 

@@ -220,7 +220,11 @@ export default function DashboardPage() {
                 <TableRow key={ins.id}>
                   <TableCell className="font-medium">{ins.etudiants?.nom} {ins.etudiants?.prenom}</TableCell>
                   <TableCell>{ins.logiciels?.nom}</TableCell>
-                  <TableCell>{new Date(ins.date_creation).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {ins.date_inscription 
+                      ? new Date(ins.date_inscription).toLocaleDateString() 
+                      : "Non définie"}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={ins.statut === "termine" ? "default" : ins.statut === "abandon" ? "destructive" : "secondary"}
