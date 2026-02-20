@@ -14,6 +14,7 @@ import PaiementsPage from "./pages/PaiementsPage";
 import SchedulePage from "./pages/SchedulePage";
 import SettingsPage from "./pages/SettingsPage";
 import DepensePage from "./pages/DepensePage";
+import PrestationsPage from "./pages/PrestationsPage";
 import InventairesPage from "./pages/InventairesPage";
 import LoginPage from "./pages/LoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/emploi-du-temps" element={<SchedulePage />} />
               <Route path="/paiements" element={<PaiementsPage />} />
               <Route path="/depenses" element={<DepensePage />} />
+              <Route path="/prestations" element={<PrestationsPage />} />
               <Route path="/inventaires" element={<InventairesPage />} />
               <Route path="/parametres" element={<SettingsPage />} />
             </Route>

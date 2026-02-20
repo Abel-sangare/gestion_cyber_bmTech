@@ -8,6 +8,7 @@ import {
   CreditCard,
   Wallet,
   BarChart3,
+  Briefcase,
   Settings,
   ChevronLeft,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const navItems = [
   { label: "Emplois du temps", icon: Calendar, to: "/emploi-du-temps" },
   { label: "Paiements", icon: CreditCard, to: "/paiements" },
   { label: "Dépenses", icon: Wallet, to: "/depenses" },
+  { label: "Prestations", icon: Briefcase, to: "/prestations" },
   { label: "Inventaires", icon: BarChart3, to: "/inventaires" },
   { label: "Paramètres", icon: Settings, to: "/parametres" },
 ];
